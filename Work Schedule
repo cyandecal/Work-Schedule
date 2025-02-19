@@ -1,0 +1,88 @@
+import { useState } from "react";
+import * as XLSX from "xlsx";
+import { Button } from "@/components/ui/button";
+import { Select, SelectItem } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+
+const options = [
+  { label: "주간", value: "주" },
+  { label: "야간", value: "야" },
+  { label: "연차", value: "연" },
+  { label: "반차", value: "반" },
+  { label: "주야간", value: "주야" },
+];
+
+export default function WorkScheduleApp() {
+  const [schedule, setSchedule] = useState([]);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      
+      const newSchedule = jsonData.slice(2).map(row => ({
+        name: row[0],
+        schedule: row.slice(1, 6),
+      }));
+      setSchedule(newSchedule);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleDownload = () => {
+    const worksheet = XLSX.utils.json_to_sheet([
+      ["이름", "1일", "2일", "3일", "4일", "5일"],
+      ...schedule.map(person => [person.name, ...person.schedule]),
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "근무표");
+    XLSX.writeFile(workbook, "근무표.xlsx");
+  };
+
+  return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">근무표 관리</h1>
+      <Input type="file" accept=".xlsx" onChange={handleFileUpload} className="mb-4" />
+      <table className="w-full border">
+        <thead>
+          <tr>
+            <th className="border p-2">이름</th>
+            {[...Array(5).keys()].map((day) => (
+              <th key={day} className="border p-2">{day + 1}일</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((person, personIndex) => (
+            <tr key={person.name}>
+              <td className="border p-2">{person.name}</td>
+              {person.schedule.map((shift, dayIndex) => (
+                <td key={dayIndex} className="border p-2">
+                  <Select
+                    value={shift}
+                    onChange={(e) => {
+                      const newSchedule = [...schedule];
+                      newSchedule[personIndex].schedule[dayIndex] = e.target.value;
+                      setSchedule(newSchedule);
+                    }}
+                  >
+                    {options.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Button className="mt-4" onClick={handleDownload}>엑셀 다운로드</Button>
+    </div>
+  );
+}
